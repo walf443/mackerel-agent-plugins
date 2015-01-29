@@ -56,28 +56,6 @@ var graphdef map[string](mp.Graphs) = map[string](mp.Graphs){
 			mp.Metrics{Name: "total_size", Label: "Total Size", Diff: false, Stacked: false},
 		},
 	},
-	"postgres.deadlocks": mp.Graphs{
-		Label: "Postgres Dead Locks",
-		Unit:  "integer",
-		Metrics: [](mp.Metrics){
-			mp.Metrics{Name: "deadlocks", Label: "Deadlocks", Diff: true, Stacked: false},
-		},
-	},
-	"postgres.iotime": mp.Graphs{
-		Label: "Postgres Block I/O time",
-		Unit:  "float",
-		Metrics: [](mp.Metrics){
-			mp.Metrics{Name: "blk_read_time", Label: "Block Read Time (ms)", Diff: true, Stacked: false},
-			mp.Metrics{Name: "blk_write_time", Label: "Block Write Time (ms)", Diff: true, Stacked: false},
-		},
-	},
-	"postgres.tempfile": mp.Graphs{
-		Label: "Postgres Temporary file",
-		Unit:  "integer",
-		Metrics: [](mp.Metrics){
-			mp.Metrics{Name: "temp_bytes", Label: "Temporary file size (byte)", Diff: true, Stacked: false},
-		},
-	},
 }
 
 type PostgresPlugin struct {
@@ -92,8 +70,8 @@ type PostgresPlugin struct {
 
 func FetchStatDatabase(db *sql.DB) (map[string]float64, error) {
 	rows, err := db.Query(`
-		select xact_commit, xact_rollback, blks_read, blks_hit, blk_read_time, blk_write_time,
-		tup_returned, tup_fetched, tup_inserted, tup_updated, tup_deleted, deadlocks, temp_bytes
+		select xact_commit, xact_rollback, blks_read, blks_hit,
+		tup_returned, tup_fetched, tup_inserted, tup_updated, tup_deleted
 		from pg_stat_database
 	`)
 	if err != nil {
@@ -104,10 +82,10 @@ func FetchStatDatabase(db *sql.DB) (map[string]float64, error) {
 	stat := make(map[string]float64)
 
 	for rows.Next() {
-		var xact_commit, xact_rollback, blks_read, blks_hit, blk_read_time, blk_write_time int
-		var tup_returned, tup_fetched, tup_inserted, tup_updated, tup_deleted, deadlocks, temp_bytes int
+		var xact_commit, xact_rollback, blks_read, blks_hit int
+		var tup_returned, tup_fetched, tup_inserted, tup_updated, tup_deleted int
 
-		if err := rows.Scan(&xact_commit, &xact_rollback, &blks_read, &blks_hit, &blk_read_time, &blk_write_time, &tup_returned, &tup_fetched, &tup_inserted, &tup_updated, &tup_deleted, &deadlocks, &temp_bytes); err != nil {
+		if err := rows.Scan(&xact_commit, &xact_rollback, &blks_read, &blks_hit, &tup_returned, &tup_fetched, &tup_inserted, &tup_updated, &tup_deleted); err != nil {
 			logger.Warningf("Failed to scan. %s", err)
 			continue
 		}
@@ -116,15 +94,11 @@ func FetchStatDatabase(db *sql.DB) (map[string]float64, error) {
 		stat["xact_rollback"] += float64(xact_rollback)
 		stat["blks_read"] += float64(blks_read)
 		stat["blks_hit"] += float64(blks_hit)
-		stat["blk_read_time"] += float64(blks_hit)
-		stat["blk_write_time"] += float64(blks_hit)
 		stat["tup_returned"] += float64(tup_returned)
 		stat["tup_fetched"] += float64(tup_fetched)
 		stat["tup_inserted"] += float64(tup_inserted)
 		stat["tup_updated"] += float64(tup_updated)
 		stat["tup_deleted"] += float64(tup_deleted)
-		stat["deadlocks"] += float64(deadlocks)
-		stat["temp_bytes"] += float64(temp_bytes)
 	}
 
 	return stat, nil
